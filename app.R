@@ -2,7 +2,7 @@ library(shiny)
 library(ggplot2)
 library(dplyr)
 library(readr)
-
+library(benford.analysis)
 
 state_ts <- read_csv("State_clean.csv")
 
@@ -20,20 +20,20 @@ ui <- fluidPage(
   
   shinyjs::useShinyjs(),
   shinyjs::inlineCSS(appCSS),
-  title = "Housing Price Trend",
+  title = "Zillow Housing Price Trend",
   
   div(id = "header",
-      h1("Housing Price Trend"),
+      h1("Zillow Housing Price Trend"),
       h4("This app is a supplement to my",
-         a(href = "http://deanattali.com/2015/06/14/mimicking-google-form-shiny/",
+         a(href = "https://github.com/cqyin/MA615_FinalProj",
            "Final Project of MA615")
       ),
       strong( 
         span("Created by "),
-        a("Chaoqun Yin", href = "http://deanattali.com"),
+        a("Chaoqun Yin", href = "https://github.com/cqyin"),
         HTML("&bull;"),
         span("Code"),
-        a("on GitHub", href = "https://github.com/daattali/shiny-server/tree/master/mimic-google-form"),
+        a("on GitHub", href = "https://github.com/cqyin/MA615_FinalProj/blob/master/app.R"),
         HTML("&bull;"))
   ),
   

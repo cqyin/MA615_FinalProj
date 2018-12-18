@@ -18,8 +18,8 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 pacman::p_load(tidyverse, data.table, DT, plyr, dplyr, reshape, stringr, doBy, ggplot2, plotly, corrplot, wesanderson, RColorBrewer, gridExtra, randomForest, forecast, prophet, caret, pls, benford.analysis)
 ```
-<center><img src="https://www.lifewire.com/thmb/nt8R6cS8nYNqPpPEkX-D7n7l-co=/768x0/filters:no_upscale():max_bytes(150000):strip_icc():format(webp)/ForScreen_RGB_ZillowLogo-FullColor-2-5aca934a3de42300367d0106.jpg"></center>
 
+![](zillow.jpg)
 
 
 # 1 Proposal of Final Project
@@ -106,6 +106,7 @@ bfd <- benford(df$ZHVI_AllHomes, number.of.digits = 1, discrete=TRUE) #generates
 bfd #prints
 plot(bfd) #plots
 ```
+
 From the plot we can see that there a big difference between the expected plot and the real plot and it does not follow Benford Distribution. Obviously, the digit 1 has extremly high frequency than benford's law. 
 
 ### Distribution of prices
@@ -126,6 +127,7 @@ ggplot(state_ts, aes(x=price)) +
     geom_vline(xintercept = 100000, col = "red") +
     geom_vline(xintercept = 200000, col = "red") 
 ```
+
 **Therefore, I suppose that because of the concentration  to 100,000 the data does not apply to Benford Distribution.**
 
 
@@ -312,6 +314,9 @@ plot(m, forecast)
 
 
 ## ARIMA model
+ARIMA model can be expressed like this:
+$$(1-\phi _1B)(1-B)Y_t = (1-\theta _1B)e_t$$
+
 ### In Massachusetts
 ```{r}
 MA<-ts(train$y[train$rn=="Massachusetts"], start=c(1996,04), freq=12)
