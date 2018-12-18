@@ -1,0 +1,334 @@
+---
+title: "MA615 Final Project: Zillow Home Value Analysis"
+author: "Chaoqun Yin"
+date: "12/12/2018"
+output:
+  html_document:
+    df_print: paged
+    number_sections: false
+    fig_caption: true
+    toc: true
+    toc_depth: 3
+    theme: cosmo
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, data.table, DT, plyr, dplyr, reshape, stringr, doBy, ggplot2, plotly, corrplot, wesanderson, RColorBrewer, gridExtra, randomForest, forecast, prophet, caret, pls, benford.analysis)
+```
+<center><img src="https://www.lifewire.com/thmb/nt8R6cS8nYNqPpPEkX-D7n7l-co=/768x0/filters:no_upscale():max_bytes(150000):strip_icc():format(webp)/ForScreen_RGB_ZillowLogo-FullColor-2-5aca934a3de42300367d0106.jpg"></center>
+
+
+
+# 1 Proposal of Final Project
+## 1.1 Zillow
+When I first contacted Zillow, I arrived America for the first time in LA and looked for a apartment to live while completing one short-term program in UCLA. Zillow Group is an online real estate database company that was founded in 2006. Zillow has data on 110 million homes across the United States, not just those homes currently for sale. In addition to giving value estimates of homes, it offers several features including value changes of each home in a given time frame (such as one, five, or 10 years), aerial views of homes, and prices of comparable homes in the area. It can access appropriate public data, it also provides basic information on a given home, such as square footage and the number of bedrooms and bathrooms. We can also get current estimates of homes if there was a significant change made, such as a recently remodeled kitchen.
+
+## 1.2 Context
+Zillow's Economic Research Team collects, cleans and publishes housing and economic data from a variety of public and proprietary sources. Public property record data filed with local municipalities -- including deeds, property facts, parcel information and transactional histories -- forms the backbone of our data products, and is fleshed out with proprietary data derived from property listings and user behavior on Zillow.
+
+The large majority of Zillow's aggregated housing market and economic data is made available for free download at zillow.com/data.
+
+
+## 1.3 Objective
+The databases of Zillow consists many kinds of data including Zillow Home Value Index, Zillow Rent Index, For-Sale Listing/Inventory Metrics, Home Sales Metrics and so on. So, the objectives can be open and diversiform. For now, I plan to:
+* dig into the prices of ZHVI(Zillow Home Value Index) in different states and analysis the trend of the prices.
+* visualize the outcomes of the analysis of the price.
+
+
+# 2 EDA
+## 2.1 Data Source
+I got the dataset from Kaggle(at kaggle.com/zillow/zecon) that is created by Zillow Research. The dataset is the format of time series and convinient to conduct time series analysis. However, the dataset has a incomplete data dictionary so I have to go to zillow.com/data to refer the variables of all the datasets listed there.
+
+
+These datasets are mainly merged by 4 type of datasets. The first dataset is about the home values called Zillow Home Value Index (ZHVI). We can obtain the housing prices of different states giving the state and housing type information on a timeline. The second one is the home listing and sale dataset supplying additional information of the first one. The third one is  Zillow Rental Index (ZVI). We can obtain the rental prices of different states on a timeline. Similarly, the fourth one is about rental listing information.
+
+
+## 2.2 Overall of the data
+In this section, we will load the data and check the basic information of the data. Then we will use some visualization to show how the housing values or the rental values change over time. Based on the findings observing the visualization, we choose the proper models to conduct analysis.
+
+###Read the data
+During this part, I load the data.
+```{r, echo=T, results='hide'}
+df <- fread("State_time_series.csv")
+head(df)
+```
+
+
+###Check the data structure
+```{r, echo=T, results='hide'}
+# Use str() to get the data type of each variable
+str(df)
+# Convert the Date to date data structure
+df[, Date := as.Date(Date)]
+df[, Year := year(df$Date)]
+```
+
+###The overview
+```{r, echo=T, results='hide'}
+summary(df)
+```
+
+###The missing data
+The percentage of the missing data is `r round((table(is.na(df))[2]/(table(is.na(df))[1] + table(is.na(df))[2]))*100, digits = 2)`%. We can see from the plot the missing values of different columns.
+
+```{r, echo=F, message=F}
+missing_value <- lapply(df, function(x) { round((sum(is.na(x)) / length(x)) * 100, 1) })
+melt(data.frame(missing_value)) %>%
+    ggplot(aes(x= reorder(variable, -value), y= value))+
+    geom_col(width=1, fill= "darkred", alpha=0.7 )+
+    labs(y="Missing pct(%)", x=NULL, title = "Missing Values by feature")+
+    theme(axis.ticks.x=element_line(colour="gray90"),
+          axis.text.y=element_text(size=5.5))+
+    coord_flip()
+```
+
+### Process the data for EDA
+```{r}
+# select certain column, reshape dataframe, calculate the mean within a year
+state_ts <- df %>% 
+  select("year" = "Year", "region" = RegionName, ZHVI_1bedroom,ZHVI_2bedroom,ZHVI_3bedroom, ZHVI_4bedroom,ZHVI_5BedroomOrMore, ZHVI_CondoCoop, ZHVI_SingleFamilyResidence, ZHVI_MiddleTier, ZHVI_TopTier, ZHVI_BottomTier) %>% 
+  gather(key = "type", value = "price", 3:12) %>% 
+  group_by(year, region, type ) %>% 
+  summarise(price = round(mean(price, na.rm =T),2)) 
+
+# change the name of sampleso in type
+state_ts$type <- str_sub(state_ts$type, start = 6, end = -1L)
+state_ts$type <- str_replace(state_ts$type, "SingleFamilyResidence", "House")
+```
+
+## 2.3 Validation of the data
+### Benford's Law
+```{r}
+bfd <- benford(df$ZHVI_AllHomes, number.of.digits = 1, discrete=TRUE) #generates benford object
+bfd #prints
+plot(bfd) #plots
+```
+From the plot we can see that there a big difference between the expected plot and the real plot and it does not follow Benford Distribution. Obviously, the digit 1 has extremly high frequency than benford's law. 
+
+### Distribution of prices
+Therefore, to figure out why digit 1 is so frequent in this data set, I will plot the distribution of the housing prices.
+```{r}
+ggplot(state_ts, aes(x=price)) + 
+    geom_histogram(aes(y=..density..),binwidth=100,
+                   colour="grey", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")
+```
+
+**I find that the data is concentrated around 1,000,000, so I add two lines of 100,000 and 200000.**
+```{r}
+ggplot(state_ts, aes(x=price)) + 
+    geom_histogram(aes(y=..density..),binwidth=100,
+                   colour="grey", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666") +
+    geom_vline(xintercept = 100000, col = "red") +
+    geom_vline(xintercept = 200000, col = "red") 
+```
+**Therefore, I suppose that because of the concentration  to 100,000 the data does not apply to Benford Distribution.**
+
+
+## 2.4 EDA
+### Figure 1: Mean Home Value over Time
+```{r}
+# Create the subset for data visualization
+df %>%
+  select(Date, RegionName, Sale_Counts, Sale_Prices, ZHVI_AllHomes, MedianRentalPrice_AllHomes ,ZRI_AllHomes) -> df.vis
+
+#Calculate the mean of home values
+MHV <- aggregate(ZHVI_AllHomes ~ Year, df, mean)
+# Plot it
+ggplot(data = MHV, aes(x = Year, y = ZHVI_AllHomes)) +
+  geom_line(col = "orange", size = 1.5) +
+  geom_point(col = "red") +
+  theme_minimal()
+```
+
+### Figure 2: The Home Value over Time by States
+```{r}
+# Plot the date v.s. log(ZHVI) by the states
+ggplot(df.vis, aes(x = Date, y = log(ZHVI_AllHomes))) + 
+  geom_line(aes(color = RegionName), size = 1) +
+  theme_minimal()
+```
+
+### Figure 3: The Home Value and Rent Value in MA over Time
+```{r}
+# Filter the data of MA
+MA<-df[RegionName=="Massachusetts"][,.("Date"= format(Date, "%y/%m")),
+                  c("RegionName", "ZRI_AllHomes", "ZHVI_AllHomes")]%>%
+                  na.omit()
+colnames(MA)[2:3]<-c("Rent","Sale")
+# Recreate the data frame
+MA <- data.frame(MA[,c(1,4)], Rent=scale(MA$Rent), Sale=scale(MA$Sale) )
+MA <- melt(MA, id=c("RegionName", "Date"))
+# Plot
+ggplot(MA, aes(x=Date, y=value, group=variable))+
+  geom_line(aes(color=variable), size=1)+
+  labs(y = "Scaled Price", title = "Home Value and Rent Value in MA")+
+  geom_vline(xintercept=seq(1,80,12), color="gray70", alpha=0.5)+
+  theme(axis.ticks.x=element_line(color=c(rep(c("black",rep("gray",11)),7))),
+        panel.grid.major.x=element_blank(), panel.grid.major.y=element_blank(),
+        panel.background=element_blank(),
+        plot.title=element_text(vjust=3, size=15),
+        axis.text.x=element_text(angle=90,hjust=-0.5,
+                                 color=c(rep(c("black",rep("white",11)),7))))+
+  scale_color_manual(values=wes_palette("GrandBudapest2")[c(1,4)])
+```
+
+### Figure 4: The housing prices divided by different room types
+```{r}
+state_ts %>%
+  filter(str_detect(type, "room")) %>%
+  ggplot(aes( x = year, y = price, fill = type)) +
+      geom_col(position = "dodge") +
+      theme_minimal() +
+      scale_y_continuous(labels = scales::dollar_format()) +
+      xlab("Year") +
+      ylab("Price - median estimated home value") +
+      ggtitle("Zillow's median estimated home value across different year", 
+              subtitle = "By Room types")
+```
+
+### Figure 5: The housing prices divided by different price tier
+```{r}
+state_ts %>%
+  filter(str_detect(type, "Tier")) %>%
+  ggplot(aes( x = year, y = price, fill = type)) +
+      geom_col(position = "dodge") +
+      theme_minimal() +
+      scale_y_continuous(labels = scales::dollar_format()) +
+      xlab("Year") +
+      ylab("Price - median estimated home value") +
+      ggtitle("Zillow's median estimated home value across different year",
+              subtitle = "By Tier types")
+```
+
+
+
+## 2.3 Choropleth Map
+### ZHVI of all homes
+```{r}
+wholes<-map_data("state")
+wholes$region<-gsub(" ","", wholes$region)
+Allstates <-data.frame( region = tolower(aggregate(ZHVI_AllHomes ~ RegionName, df, mean)[,1]), Price = aggregate(ZHVI_AllHomes ~RegionName,df,mean)[,2])%>%
+            mutate(Rank = dense_rank(desc(Price)))%>%
+            merge(wholes, by = 'region')
+#Allstates$price<-zoo::na.fill(Allstates$price,0)
+ap<-arrange(Allstates, order)%>%
+    ggplot(aes(long, lat, group=group, fill=Price))+
+    geom_polygon()+
+    geom_path(alpha=0.2)+
+    labs(x=NULL, y=NULL, title = "Mean of the ZHVI_AllHomes in USA")+
+    coord_map("polyconic")+
+    coord_fixed(1.3)+
+    scale_fill_gradientn(colors= wes_palette("Royal1"))+
+    theme(legend.text=element_text(size=8),
+          plot.title=element_text(size=15),
+          panel.background=element_blank())
+ggplotly(ap)
+```
+
+### ZHVI of specific room type: take 1 bedroom as example
+```{r}
+Allstates.room <-data.frame( region = tolower(aggregate(ZHVI_3bedroom ~ RegionName, df, mean)[,1]), Price = aggregate(ZHVI_3bedroom ~RegionName,df,mean)[,2])%>%
+            mutate(Rank = dense_rank(desc(Price)))%>%
+            merge(wholes, by = 'region')
+#Allstates$price<-zoo::na.fill(Allstates$price,0)
+ap<-arrange(Allstates.room, order)%>%
+    ggplot(aes(long, lat, group=group, fill=Price))+
+    geom_polygon()+
+    geom_path(alpha=0.2)+
+    labs(x=NULL, y=NULL, title = "Mean of the ZHVI_1bedroom in USA")+
+    coord_map("polyconic")+
+    coord_fixed(1.3)+
+    scale_fill_gradientn(colors= wes_palette("Zissou1"))+
+    theme(legend.text=element_text(size=8),
+          plot.title=element_text(size=15),
+          panel.background=element_blank())
+ggplotly(ap)
+```
+
+### ZHVI of different tiers: take top tier as example
+```{r}
+Allstates.room <-data.frame( region = tolower(aggregate(ZHVI_MiddleTier ~ RegionName, df, mean)[,1]), Price = aggregate(ZHVI_MiddleTier ~RegionName,df,mean)[,2])%>%
+            mutate(Rank = dense_rank(desc(Price)))%>%
+            merge(wholes, by = 'region')
+#Allstates$price<-zoo::na.fill(Allstates$price,0)
+ap<-arrange(Allstates.room, order)%>%
+    ggplot(aes(long, lat, group=group, fill=Price))+
+    geom_polygon()+
+    geom_path(alpha=0.2)+
+    labs(x=NULL, y=NULL, title = "Mean of the ZHVI_MiddleTier in USA")+
+    coord_map("polyconic")+
+    coord_fixed(1.3)+
+    scale_fill_gradientn(colors= wes_palette("Moonrise2"))+
+    theme(legend.text=element_text(size=8),
+          plot.title=element_text(size=15),
+          panel.background=element_blank())
+ggplotly(ap)
+```
+
+# 3 Modeling
+In this part, I will use prophet model and ARIMA to predict the housing prices.
+## Prophet model
+### In USA
+```{r, warning = FALSE, message = FALSE}
+train = na.omit(with(df,data.frame(ds = Date, y= log(ZHVI_AllHomes), rn = RegionName)))
+m_train = aggregate(y~ds, train, mean)
+m <- prophet(m_train, weekly.seasonality=FALSE, daily.seasonality=FALSE)
+future <- make_future_dataframe(m, periods=24, freq="month")
+```
+
+```{r}
+# Forecasting
+forecast <- predict(m, future)
+plot(m, forecast)
+prophet_plot_components(m, forecast)
+
+tail(forecast,100)%>%
+    ggplot(aes(x=as.Date(ds)))+
+    geom_line(aes(y=trend))+
+    scale_x_date(date_breaks = '1 month', date_labels="'%y-%m")+
+    geom_line(aes(y=yhat), color="blue")+
+    geom_ribbon(aes(ymin=trend_lower, ymax=trend_upper), alpha=0.1)+
+    labs(x=NULL, y=NULL, title = "Trend & yhat form 2018 to 2019")+
+    theme(panel.background=element_blank(),
+          panel.grid.major=element_line(color = "gray90"),
+          axis.text.x=element_text(angle = 90))
+```
+
+### In Massachusetts
+```{r, warning = FALSE, message = FALSE}
+c_train<-subset(train, rn=="Massachusetts")
+m <- prophet(c_train, weekly.seasonality=FALSE, daily.seasonality=FALSE)
+
+# Forecasting
+forecast <- predict(m, future)
+
+plot(m, forecast)
+```
+
+
+## ARIMA model
+### In Massachusetts
+```{r}
+MA<-ts(train$y[train$rn=="Massachusetts"], start=c(1996,04), freq=12)
+plot(decompose(MA), color)
+```
+
+```{r}
+MA_adjusted <- MA- (decompose(MA))$seasonal
+ndiffs(MA_adjusted)
+fitted.ma <-auto.arima(diff(MA_adjusted, 2))
+fitted.ma
+```
+
+```{r}
+# Forecasting
+forecasted.ma <-forecast(fitted.ma, 24)
+plot(forecasted.ma, col="#9498b0", lwd=2)
+```
+
+

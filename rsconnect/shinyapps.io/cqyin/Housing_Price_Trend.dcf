@@ -1,0 +1,13 @@
+name: Housing_Price_Trend
+title: Housing_Price_Trend
+username:
+account: cqyin
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 619096
+bundleId: 1769424
+url: https://cqyin.shinyapps.io/Housing_Price_Trend/
+when: 1545086610.87481
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|FinalProj.pdf|FinalProj.Rmd|MidtermProject.Rmd|data
