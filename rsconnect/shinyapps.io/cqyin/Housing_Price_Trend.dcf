@@ -5,9 +5,9 @@ account: cqyin
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 619096
-bundleId: 1769424
+bundleId: 1769794
 url: https://cqyin.shinyapps.io/Housing_Price_Trend/
-when: 1545086610.87481
+when: 1545105550.61107
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: .RData|FinalProj.pdf|FinalProj.Rmd|MidtermProject.Rmd|data
+ignoredFiles: .RData|FinalProj.html|FinalProj.pptx|FinalProj.Rmd|MidtermProject.Rmd|zillow.jpg

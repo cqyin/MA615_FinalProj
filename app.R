@@ -38,7 +38,7 @@ ui <- fluidPage(
   ),
   
   sidebarLayout(
-    sidebarPanel("An interactive app to help analyze and visualize the housing prices in the U.S.",
+    sidebarPanel("An interactive app to help visualize the Zillow housing prices in America.",
                  br(),
                  
                  sliderInput("yearInput", "Years",
