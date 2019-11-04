@@ -24,17 +24,10 @@ ui <- fluidPage(
   
   div(id = "header",
       h1("Zillow Housing Price Trend"),
-      h4("This app is a supplement to my",
-         a(href = "https://github.com/cqyin/MA615_FinalProj",
-           "Final Project of MA615")
-      ),
+      h4("This app is a supplement to my application for the Data Incubator")
+      ,
       strong( 
-        span("Created by "),
-        a("Chaoqun Yin", href = "https://github.com/cqyin"),
-        HTML("&bull;"),
-        span("Code"),
-        a("on GitHub", href = "https://github.com/cqyin/MA615_FinalProj/blob/master/app.R"),
-        HTML("&bull;"))
+        span("Created by "))
   ),
   
   sidebarLayout(
